@@ -1,0 +1,61 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies and add Android
+        run: |
+          npm install
+          npx cap add android
+          npx capacitor-assets generate --android || true
+
+      - name: Add Location Permissions to AndroidManifest
+        run: |
+          python3 -c '
+          p = "android/app/src/main/AndroidManifest.xml"
+          txt = open(p, encoding="utf-8").read()
+          perms = [
+              "<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" />",
+              "<uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" />"
+          ]
+          ins = "\n    ".join(x for x in perms if x not in txt)
+          if ins:
+              txt = txt.replace("<application", ins + "\n    <application", 1)
+              open(p, "w", encoding="utf-8").write(txt)
+          '
+
+      - name: Sync Capacitor and Build Debug APK
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Prepare APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk RafiqAlMuslim.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RafiqAlMuslim-APK
+          path: RafiqAlMuslim.apk

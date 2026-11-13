@@ -1,0 +1,48 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies and add iOS
+        run: |
+          npm install
+          npx cap add ios
+          npx capacitor-assets generate --ios || true
+
+      - name: Configure Info.plist Permissions
+        run: |
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'يحتاج التطبيق إلى موقعك لحساب أوقات الصلاة واتجاه القبلة بدقة'" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSLocationWhenInUseUsageDescription 'يحتاج التطبيق إلى موقعك لحساب أوقات الصلاة واتجاه القبلة بدقة'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'يحتاج التطبيق إلى مستشعر الحركة لتشغيل بوصلة القبلة'" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSMotionUsageDescription 'يحتاج التطبيق إلى مستشعر الحركة لتشغيل بوصلة القبلة'" "$PLIST"
+
+      - name: Sync Capacitor and Build Unsigned IPA
+        run: |
+          npx cap sync ios
+          if [ -d "ios/App/App.xcworkspace" ]; then
+            xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -derivedDataPath build
+          else
+            xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -derivedDataPath build
+          fi
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r RafiqAlMuslim.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RafiqAlMuslim-IPA
+          path: RafiqAlMuslim.ipa

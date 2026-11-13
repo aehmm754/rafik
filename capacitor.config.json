@@ -1,0 +1,11 @@
+{
+  "appId": "com.alsahan.rafiqalmuslim",
+  "appName": "رفيق المسلم",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
